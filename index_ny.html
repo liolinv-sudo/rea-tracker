@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REA Projekt</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --text: #1d1f21; --muted: #6a6f76;
+    --border: #e1e2e0; --accent: #2f5bea; --accent-text: #ffffff;
+    --planned: #8a6d00; --planned-bg: #fff4cc;
+    --progress: #1f4fbf; --progress-bg: #e1eaff;
+    --done: #1d6b3a; --done-bg: #ddf3e4;
+    --danger: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171a; --card: #1e2125; --text: #e8e9ea; --muted: #9aa0a6;
+      --border: #30343a; --accent: #6f93ff; --accent-text: #0e1116;
+      --planned: #f0cf63; --planned-bg: #3a3112;
+      --progress: #9db9ff; --progress-bg: #1c2a4d;
+      --done: #8fdca8; --done-bg: #17331f;
+      --danger: #ff8a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 1.6rem; margin: 0; }
+  h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  .sub { color: var(--muted); margin: 4px 0 20px; }
+  section, .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  label { display: block; font-size: .85rem; color: var(--muted); margin: 10px 0 4px; }
+  input, select, textarea { width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font: inherit; }
+  textarea { min-height: 70px; resize: vertical; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); padding: 8px 14px; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  button.small { padding: 4px 10px; font-size: .85rem; }
+  button:disabled { opacity: .5; cursor: default; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
+  .msg { margin-top: 10px; font-size: .9rem; }
+  .msg.err { color: var(--danger); }
+  .msg.ok { color: var(--done); }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .toolbar input { flex: 1; min-width: 160px; }
+  .toolbar select { width: auto; }
+  .card h3 { margin: 0 0 4px; font-size: 1.05rem; }
+  .meta { color: var(--muted); font-size: .85rem; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .badge { padding: 1px 9px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+  .badge.planned { background: var(--planned-bg); color: var(--planned); }
+  .badge.progress { background: var(--progress-bg); color: var(--progress); }
+  .badge.done { background: var(--done-bg); color: var(--done); }
+  .feature { margin: 8px 0 0; }
+  pre { white-space: pre-wrap; word-break: break-word; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px; font-size: .85rem; margin: 10px 0 0; }
+  details summary { cursor: pointer; color: var(--muted); font-size: .9rem; margin-top: 8px; }
+  .empty { color: var(--muted); text-align: center; padding: 24px 0; }
+  .note { font-size: .85rem; color: var(--muted); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>REA Projekt</h1>
+    <button id="toggleSettings" class="small">Inställningar</button>
+  </header>
+  <p class="sub">Samla dina "research engineerade" appar, produkter och tjänster. Projekten sparas som issues i ditt eget GitHub-repo.</p>
+
+  <section id="settings" hidden>
+    <h2>Anslutning till GitHub</h2>
+    <div class="row">
+      <div>
+        <label for="repo">Repo för projekten (ägare/namn)</label>
+        <input id="repo" placeholder="dittnamn/rea-projects" autocomplete="off">
+      </div>
+      <div>
+        <label for="token">Personlig åtkomsttoken (fine-grained)</label>
+        <input id="token" type="password" placeholder="github_pat_..." autocomplete="off">
+      </div>
+    </div>
+    <p class="note">Token behöver bara läs- och skrivrättighet för <em>Issues</em> i just det repot. Den sparas enbart i den här webbläsaren (localStorage) och skickas bara till api.github.com.</p>
+    <div class="actions">
+      <button id="saveSettings" class="primary">Spara och testa</button>
+      <button id="clearSettings">Rensa</button>
+    </div>
+    <div id="settingsMsg" class="msg"></div>
+  </section>
+
+  <section>
+    <h2>Nytt projekt</h2>
+    <label for="name">App, produkt eller tjänst</label>
+    <input id="name" placeholder="t.ex. Notes, Notion, en webbtjänst eller en APK">
+    <div class="row">
+      <div>
+        <label for="type">Typ av mål</label>
+        <select id="type">
+          <option value="native">Native app / binär</option>
+          <option value="electron">Electron / JavaScript-app</option>
+          <option value="android">Android APK</option>
+          <option value="dotnet">.NET-program</option>
+          <option value="website">Webbplats / webbtjänst</option>
+          <option value="other">Annat</option>
+        </select>
+      </div>
+      <div>
+        <label for="location">Var finns målet? (valfritt)</label>
+        <input id="location" placeholder="Sökväg på din dator eller URL">
+      </div>
+    </div>
+    <label for="feature">Vad vill du förstå? (valfritt)</label>
+    <textarea id="feature" placeholder="t.ex. hur sökfunktionen fungerar, hur synkningen sker, hur filen sparas"></textarea>
+    <div class="actions">
+      <button id="create" class="primary">Skapa projekt</button>
+      <span class="note">Analysen körs av din agent med REA installerat. Sidan skapar projektet och en färdig prompt.</span>
+    </div>
+    <div id="createMsg" class="msg"></div>
+  </section>
+
+  <section>
+    <h2>Mina projekt</h2>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Sök bland projekt">
+      <select id="filter">
+        <option value="all">Alla</option>
+        <option value="planned">Planerade</option>
+        <option value="progress">Pågår</option>
+        <option value="done">Klara</option>
+      </select>
+      <button id="reload">Uppdatera</button>
+    </div>
+    <div id="list"></div>
+    <div id="listMsg" class="msg"></div>
+  </section>
+
+  <p class="note">REA används för lagliga syften: analys av programvara du äger eller har tillstånd att undersöka. Se <a href="https://github.com/morluto/rea" target="_blank" rel="noopener">morluto/rea</a> för installation (<code>npx rea-agents setup</code>) och ansvarsfriskrivning.</p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORE = "rea-project-tracker";
+  var LABEL_ROOT = "rea-project";
+  var STATUS = {
+    planned:  { label: "rea:planned",     text: "Planerad" },
+    progress: { label: "rea:in-progress", text: "Pågår" },
+    done:     { label: "rea:done",        text: "Klar" }
+  };
+  var TYPES = {
+    native: "Native app / binär", electron: "Electron / JavaScript-app", android: "Android APK",
+    dotnet: ".NET-program", website: "Webbplats / webbtjänst", other: "Annat"
+  };
+
+  var projects = [];
+
+  function $(id) { return document.getElementById(id); }
+
+  function loadCfg() {
+    try { return JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) { return {}; }
+  }
+  function saveCfg(c) {
+    try { localStorage.setItem(STORE, JSON.stringify(c)); } catch (e) { /* ignore */ }
+  }
+  function clearCfg() {
+    try { localStorage.removeItem(STORE); } catch (e) { /* ignore */ }
+  }
+
+  function setMsg(id, text, kind) {
+    var el = $(id);
+    el.textContent = text || "";
+    el.className = "msg" + (kind ? " " + kind : "");
+  }
+
+  async function api(path, opts) {
+    var cfg = loadCfg();
+    if (!cfg.repo || !cfg.token) throw new Error("Fyll i repo och token under Inställningar först.");
+    opts = opts || {};
+    var res = await fetch("https://api.github.com" + path, {
+      method: opts.method || "GET",
+      headers: {
+        "Authorization": "Bearer " + cfg.token,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json"
+      },
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    });
+    if (!res.ok) {
+      var detail = "";
+      try { detail = (await res.json()).message || ""; } catch (e) { /* ignore */ }
+      var err = new Error("GitHub svarade " + res.status + (detail ? ": " + detail : ""));
+      err.status = res.status;
+      throw err;
+    }
+    return res.status === 204 ? null : res.json();
+  }
+
+  function repoPath() { return "/repos/" + loadCfg().repo; }
+
+  async function ensureLabels() {
+    var defs = [
+      { name: LABEL_ROOT, color: "2f5bea", description: "REA-projekt" },
+      { name: STATUS.planned.label, color: "fbca04", description: "REA: planerad" },
+      { name: STATUS.progress.label, color: "1d76db", description: "REA: pågår" },
+      { name: STATUS.done.label, color: "0e8a16", description: "REA: klar" }
+    ];
+    for (var i = 0; i < defs.length; i++) {
+      try { await api(repoPath() + "/labels", { method: "POST", body: defs[i] }); }
+      catch (e) { if (e.status !== 422) throw e; } // 422 = finns redan
+    }
+  }
+
+  function buildPrompt(p) {
+    var typeHint = {
+      native: "Det är en native app eller binär. Använd REA:s native-analys (Hopper, Ghidra eller IDA) och ge pseudokod, assembly, strängar och referenser som underlag.",
+      electron: "Det är en Electron/JavaScript-app. Analysera moduler, imports, IPC och gränsen mellan renderer och main.",
+      android: "Det är en Android APK. Analysera manifest, klasser och dekompilerade metoder.",
+      dotnet: "Det är ett .NET-program. Analysera metadata och CIL-instruktioner.",
+      website: "Det är en webbplats eller webbtjänst. Observera sidstruktur, skript och nätverksanrop.",
+      other: "Börja med att ta reda på vilken typ av mål det är och välj lämpliga REA-verktyg."
+    }[p.type] || "";
+    var lines = [];
+    lines.push("Använd REA för att undersöka " + p.name + (p.location ? " (" + p.location + ")" : "") + ".");
+    if (p.feature) lines.push("Jag vill förstå: " + p.feature + ".");
+    else lines.push("Ge en överblick över hur den fungerar och vilka delar som är intressanta att gå djupare på.");
+    if (typeHint) lines.push(typeHint);
+    lines.push("Visa bevisen för varje slutsats och var gränserna för analysen går. Sammanfatta resultatet så att jag kan klistra in det som kommentar i projektets issue.");
+    lines.push("Jag äger målet eller har tillstånd att undersöka det.");
+    return lines.join("\n");
+  }
+
+  function buildBody(p) {
+    var meta = { type: p.type, location: p.location || "", feature: p.feature || "" };
+    return [
+      "<!-- rea:" + JSON.stringify(meta).replace(/--/g, "\\u002d\\u002d") + " -->",
+      "## Mål",
+      p.name,
+      "",
+      "**Typ:** " + (TYPES[p.type] || p.type),
+      p.location ? "**Plats:** " + p.location : "",
+      p.feature ? "**Vill förstå:** " + p.feature : "",
+      "",
+      "## Prompt till agenten",
+      "```",
+      buildPrompt(p),
+      "```",
+      "",
+      "## Resultat",
+      "_Lägg resultatet som kommentar nedan, eller redigera den här texten._"
+    ].filter(function (l) { return l !== null; }).join("\n");
+  }
+
+  function parseIssue(issue) {
+    var meta = { type: "other", location: "", feature: "" };
+    var m = /<!-- rea:(\{.*?\}) -->/s.exec(issue.body || "");
+    if (m) { try { meta = Object.assign(meta, JSON.parse(m[1])); } catch (e) { /* ignore */ } }
+    var names = (issue.labels || []).map(function (l) { return typeof l === "string" ? l : l.name; });
+    var status = "planned";
+    if (names.indexOf(STATUS.done.label) >= 0) status = "done";
+    else if (names.indexOf(STATUS.progress.label) >= 0) status = "progress";
+    var title = issue.title.replace(/^\[REA\]\s*/, "");
+    return {
+      number: issue.number, url: issue.html_url, name: title, type: meta.type,
+      location: meta.location, feature: meta.feature, status: status,
+      created: issue.created_at, comments: issue.comments, labels: names
+    };
+  }
+
+  async function loadProjects() {
+    setMsg("listMsg", "Hämtar projekt…");
+    try {
+      var items = await api(repoPath() + "/issues?labels=" + LABEL_ROOT + "&state=all&per_page=100&sort=created&direction=desc");
+      projects = items.filter(function (i) { return !i.pull_request; }).map(parseIssue);
+      setMsg("listMsg", "");
+      render();
+    } catch (e) {
+      projects = [];
+      render();
+      setMsg("listMsg", e.message, "err");
+    }
+  }
+
+  function el(tag, props, children) {
+    var n = document.createElement(tag);
+    if (props) Object.keys(props).forEach(function (k) {
+      if (k === "text") n.textContent = props[k];
+      else if (k === "class") n.className = props[k];
+      else if (k === "onclick") n.addEventListener("click", props[k]);
+      else n.setAttribute(k, props[k]);
+    });
+    (children || []).forEach(function (c) { if (c) n.appendChild(c); });
+    return n;
+  }
+
+  function render() {
+    var q = $("search").value.trim().toLowerCase();
+    var f = $("filter").value;
+    var list = $("list");
+    list.textContent = "";
+    var shown = projects.filter(function (p) {
+      if (f !== "all" && p.status !== f) return false;
+      if (!q) return true;
+      return (p.name + " " + p.feature + " " + p.location).toLowerCase().indexOf(q) >= 0;
+    });
+    if (!shown.length) {
+      list.appendChild(el("div", { class: "empty", text: projects.length ? "Inga projekt matchar." : "Inga projekt ännu. Skapa det första ovanför." }));
+      return;
+    }
+    shown.forEach(function (p) {
+      var prompt = buildPrompt(p);
+      var date = new Date(p.created).toLocaleDateString("sv-SE");
+      var meta = el("div", { class: "meta" }, [
+        el("span", { class: "badge " + p.status, text: STATUS[p.status].text }),
+        el("span", { text: TYPES[p.type] || p.type }),
+        el("span", { text: date }),
+        el("span", { text: p.comments + (p.comments === 1 ? " kommentar" : " kommentarer") })
+      ]);
+      var btns = el("div", { class: "actions" }, [
+        el("a", { href: p.url, target: "_blank", rel: "noopener" }, [el("button", { class: "small", text: "Öppna i GitHub" })]),
+        el("button", { class: "small", text: "Kopiera prompt", onclick: function (ev) {
+          copy(prompt, ev.target);
+        } })
+      ]);
+      Object.keys(STATUS).forEach(function (s) {
+        if (s === p.status) return;
+        btns.appendChild(el("button", { class: "small", text: "Markera: " + STATUS[s].text, onclick: function () { setStatus(p, s); } }));
+      });
+      var card = el("div", { class: "card" }, [
+        el("h3", { text: p.name }),
+        meta,
+        p.feature ? el("p", { class: "feature", text: p.feature }) : null,
+        p.location ? el("div", { class: "note", text: p.location }) : null,
+        el("details", null, [el("summary", { text: "Visa prompt" }), el("pre", { text: prompt })]),
+        btns
+      ]);
+      list.appendChild(card);
+    });
+  }
+
+  async function copy(text, btn) {
+    var old = btn.textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.textContent = "Kopierad";
+    } catch (e) {
+      btn.textContent = "Kunde inte kopiera";
+    }
+    setTimeout(function () { btn.textContent = old; }, 1500);
+  }
+
+  async function setStatus(p, s) {
+    setMsg("listMsg", "Uppdaterar…");
+    try {
+      var labels = p.labels.filter(function (n) {
+        return n !== STATUS.planned.label && n !== STATUS.progress.label && n !== STATUS.done.label;
+      });
+      labels.push(STATUS[s].label);
+      await api(repoPath() + "/issues/" + p.number, {
+        method: "PATCH",
+        body: { labels: labels, state: s === "done" ? "closed" : "open" }
+      });
+      await loadProjects();
+    } catch (e) {
+      setMsg("listMsg", e.message, "err");
+    }
+  }
+
+  async function createProject() {
+    var name = $("name").value.trim();
+    if (!name) { setMsg("createMsg", "Skriv in en app, produkt eller tjänst.", "err"); return; }
+    var p = {
+      name: name, type: $("type").value,
+      location: $("location").value.trim(), feature: $("feature").value.trim()
+    };
+    var btn = $("create");
+    btn.disabled = true;
+    setMsg("createMsg", "Skapar projekt…");
+    try {
+      await ensureLabels();
+      var issue = await api(repoPath() + "/issues", {
+        method: "POST",
+        body: { title: "[REA] " + p.name, body: buildBody(p), labels: [LABEL_ROOT, STATUS.planned.label] }
+      });
+      $("name").value = ""; $("location").value = ""; $("feature").value = "";
+      setMsg("createMsg", "Projektet skapades (#" + issue.number + "). Kopiera prompten från listan nedan och kör den i din agent.", "ok");
+      await loadProjects();
+    } catch (e) {
+      setMsg("createMsg", e.message, "err");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function saveSettings() {
+    var repo = $("repo").value.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\/+$/, "");
+    var token = $("token").value.trim();
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) { setMsg("settingsMsg", "Repot ska skrivas som ägare/namn.", "err"); return; }
+    if (!token) { setMsg("settingsMsg", "Fyll i en token.", "err"); return; }
+    saveCfg({ repo: repo, token: token });
+    setMsg("settingsMsg", "Testar anslutningen…");
+    try {
+      var info = await api(repoPath());
+      setMsg("settingsMsg", "Ansluten till " + info.full_name + (info.private ? " (privat)." : " (publikt, så alla kan läsa dina projekt)."), "ok");
+      await loadProjects();
+    } catch (e) {
+      setMsg("settingsMsg", e.message, "err");
+    }
+  }
+
+  function init() {
+    var cfg = loadCfg();
+    $("repo").value = cfg.repo || "";
+    $("token").value = cfg.token || "";
+    if (!cfg.repo || !cfg.token) $("settings").hidden = false;
+
+    $("toggleSettings").addEventListener("click", function () { $("settings").hidden = !$("settings").hidden; });
+    $("saveSettings").addEventListener("click", saveSettings);
+    $("clearSettings").addEventListener("click", function () {
+      clearCfg(); $("repo").value = ""; $("token").value = "";
+      projects = []; render(); setMsg("settingsMsg", "Inställningarna är rensade.", "ok");
+    });
+    $("create").addEventListener("click", createProject);
+    $("reload").addEventListener("click", loadProjects);
+    $("search").addEventListener("input", render);
+    $("filter").addEventListener("change", render);
+    $("name").addEventListener("keydown", function (e) { if (e.key === "Enter") createProject(); });
+
+    render();
+    if (cfg.repo && cfg.token) loadProjects();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
